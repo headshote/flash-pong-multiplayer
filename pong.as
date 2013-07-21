@@ -1,38 +1,60 @@
-//for ball movements
-var xDirection:int = 10;
-var yDirection:int = -10;
-
-//For paddle movement calculations
-var targetX:int = paddle_mc.x;
-var easing = 7;
+﻿//for ball movements, it's according coordinates will be updated by amount in this variables every frame
+var xDirection:int;
+var yDirection:int;
 
 //score
 var playerScore:Number;
 var enemyScore:Number;
 
-var winningScore:Number = 3;
+var winningScore:Number;
 
 var hit:Sound = new Hit();
+
 
 function initializeGame(event:MouseEvent):void
 {
 	playerScore = 0;
 	enemyScore = 0;
+	winningScore = 5;
+	xDirection = 10;
+    yDirection = -10;
+
+	stage.frameRate = 60;
 	
-	score_mc.gotoAndStop(1);
+	//Hides score screen
+	score_mc.gotoAndStop(1);	
 	
-	//ball staarts noving after mouseclick
-	ball_mc.addEventListener( Event.ENTER_FRAME, moveBall);
-	//paddle movement with mouse
-	paddle_mc.addEventListener( Event.ENTER_FRAME, movePaddle);
-	//no longer need event listener
-	bg_mc.removeEventListener(MouseEvent.CLICK, initializeGame);
-	//for enemy
-	enemy_mc.addEventListener(Event.ENTER_FRAME, moveEnemy);
+	//Every frame fcns that process movement of all objects will be called
+	stage.addEventListener( Event.ENTER_FRAME, renderAndProcess); 
+	
+	bg_mc.removeEventListener(MouseEvent.CLICK, initializeGame);	
 	
 	Mouse.hide();
 }
 
+
+function endGame()
+{	
+	//no longer call functions that are responsible for movements of objects in game
+	stage.removeEventListener( Event.ENTER_FRAME, renderAndProcess);
+	
+	bg_mc.addEventListener(MouseEvent.CLICK, initializeGame); //Start game with mouse click
+	
+	Mouse.hide();
+	
+	//stop Engame screen (score screen) movieClip at last frame, so tha it shows score while game's paused
+	score_mc.gotoAndStop(12); 
+}
+
+//Main function that will be called every frame
+function renderAndProcess( event:Event )
+{
+	moveBall();
+	movePaddle();
+	moveEnemy();
+}
+
+//Displays score, as well as checks for endgame conditions
 function showScore()
 {
 	if( playerScore >= winningScore)
@@ -55,33 +77,30 @@ function showScore()
 	}	
 }
 
-function endGame()
-{
-	//ball staarts noving after mouseclick
-	ball_mc.removeEventListener( Event.ENTER_FRAME, moveBall);
-	//paddle movement with mouse
-	paddle_mc.removeEventListener( Event.ENTER_FRAME, movePaddle);
-	//no longer need event listener
-	bg_mc.addEventListener(MouseEvent.CLICK, initializeGame);
-	//for enemy
-	enemy_mc.removeEventListener(Event.ENTER_FRAME, moveEnemy);
-	Mouse.hide();
-	
-	score_mc.gotoAndStop(12);
-}
 
-//if walls behind enemy or player paddle was hit
-function resetBallPosition()
+
+//if walls behind enemy or player paddle were hit by ball
+function resetBallPosition(starter:String )
 {
 	hit.play();
-	xDirection = 10;
-	yDirection = -10;
-	ball_mc.x = paddle_mc.x + paddle_mc.width/2;
-	ball_mc.y = paddle_mc.y - ball_mc.height - paddle_mc.height /2;
+	if (starter == "player" )
+	{
+		xDirection = 10 * Math.pow( -1,(playerScore+enemyScore));
+		yDirection = -10;
+		ball_mc.x = paddle_mc.x + paddle_mc.width/2;
+		ball_mc.y = paddle_mc.y - ball_mc.height - paddle_mc.height /2;
+	}
+	else if (starter == "enemy")
+	{
+		xDirection = 10 * Math.pow( -1,(playerScore+enemyScore));
+		yDirection = 10;
+		ball_mc.x = enemy_mc.x + enemy_mc.width/2;
+		ball_mc.y = enemy_mc.y + ball_mc.height + enemy_mc.height /2;
+	}
 
 }
 
-//to change x movement speed according to which part of paddle was hit
+//Helper fcn to change x movement speed (and thus, angle) according to which part of paddle was hit
 function checkHitLocation( paddle:MovieClip)
 {
 	var hitPercent:Number;
@@ -91,18 +110,20 @@ function checkHitLocation( paddle:MovieClip)
 	yDirection *= 1.05;
 }
 
-//bouncing and movement of ball
-function moveBall( event:Event)
+//Bouncing and movement of ball
+function moveBall()
 {	
 	// Against sidewalls
 	if ( ball_mc.x <= 0)
 	{
 		xDirection *= -1;
+		ball_mc.x = 0;
 		hit.play();
 	}
 	else if( ball_mc.x >= stage.stageWidth - ball_mc.width)
 	{
 		xDirection *= -1;
+		ball_mc.x = stage.stageWidth - ball_mc.width;
 		hit.play();
 	}
 	
@@ -111,7 +132,8 @@ function moveBall( event:Event)
 	{
 		yDirection *= -1;
 		hit.play();
-		ball_mc.y = paddle_mc.y - ball_mc.height - paddle_mc.height /2;
+		//placing ball on top of player's paddle to avoid derping
+		ball_mc.y = paddle_mc.y - ball_mc.height - paddle_mc.height /2; 
 		checkHitLocation(paddle_mc);
 	}
 	
@@ -120,6 +142,7 @@ function moveBall( event:Event)
 	{
 		yDirection *= -1;
 		hit.play();
+		//placing ball below enemy's paddle to avoid derping
 		ball_mc.y = enemy_mc.y + enemy_mc.height + ball_mc.height/2;
 		checkHitLocation(enemy_mc);
 	}
@@ -129,13 +152,13 @@ function moveBall( event:Event)
 	{		
 		playerScore++;
 		showScore();
-		resetBallPosition();
+		resetBallPosition("player");
 	}
 	else if( ball_mc.y >= stage.stageHeight - ball_mc.height)
 	{
 		enemyScore++;
 		showScore();
-		resetBallPosition();
+		resetBallPosition("enemy");
 	}
 	
 	//movement of ball
@@ -144,27 +167,33 @@ function moveBall( event:Event)
 }
 
 //makes paddle move with mouse
-function movePaddle(event:Event)
+function movePaddle()
 {
-	/*if( this.mouseX <= paddle_mc.width/2)
+	var targetX;
+	//Constrains movement of paddle inside of window
+	if( this.mouseX <= paddle_mc.width/2)
 	{
 		targetX = 0;
 	}
 	else if( this.mouseX >= stage.stageWidth - paddle_mc.width/2)
 	{
-		targetX = stage.stageWidth - paddle_mc.widht;
+		targetX = stage.stageWidth - paddle_mc.width;
 	}
 	else
-	{*/
+	{
 		targetX = this.mouseX - paddle_mc.width/2;
-		paddle_mc.x += (targetX - paddle_mc.x) / easing;
-	/*}*/	
+		//targetX = this.mouseX - paddle_mc.width/2;
+		//paddle_mc.x += (targetX - paddle_mc.x) / easing;
+	}	
+	paddle_mc.x = targetX;
 }
 
-//"AI"
-function moveEnemy(event:Event)
+//"AI", movements of top board
+function moveEnemy()
 {
 	var enemyTargetX:Number;
+	//For paddle movement calculations
+	var easing = Math.abs(yDirection)*0.6;
 	enemyTargetX = ball_mc.x - enemy_mc.width/2;
 	if( enemyTargetX <= 0 )
 	{
@@ -177,4 +206,5 @@ function moveEnemy(event:Event)
 	enemy_mc.x += ( enemyTargetX - enemy_mc.x ) / easing;
 }
 
+//As soon as mouse is clicked, initializeGame() will be called
 bg_mc.addEventListener(MouseEvent.CLICK, initializeGame);
