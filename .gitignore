@@ -1,2 +1,4 @@
-*.fla
 *.swf
+*.exe
+*.pdb
+*.cache
