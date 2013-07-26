@@ -1,12 +1,21 @@
 ﻿package {
-	import flash.display.MovieClip
 	import playerio.*
-	import flash.events.KeyboardEvent;
-	import flash.events.Event;
+	import flash.display.*;
+	import flash.events.*;
+ 	import flash.ui.*;
+	import flash.geom.ColorTransform;
 	
 	public class MP_Pong extends MovieClip
 	{
 		var connection:Connection;
+		var players:Array;
+		var myId:int;
+		var leftPressed:Boolean;
+		var rightPressed:Boolean;	
+		//Time at the last frame
+		var oldTime:Number = (new Date()).getTime()
+		//Time at the last state update
+		var oldStateTime:Number = 0
 		
 		function MP_Pong()
 		{
@@ -15,13 +24,16 @@
 				stage,								//Referance to stage
 				"multiplayer-pong-jed5uk4mnkx6pgpynxeva",			//Game id (Get your own at playerio.com)
 				"public",							//Connection id, default is public
-				"GuestUser",						//Username
+				"GuestUser" + Math.floor(Math.random()*1000).toString(),	//Username
 				"",									//User auth. Can be left blank if authentication is disabled on connection
 				null,								//Current PartnerPay partner.
 				handleConnect,						//Function executed on successful connect
 				handleError							//Function executed if we recive an error
-			);   			
-		}
+			);   
+			players = new Array();
+			leftPressed = false;
+			rightPressed = false;		
+		}	
 		
 		private function handleConnect(client:Client):void
 		{
@@ -44,34 +56,23 @@
 		
 		
 		private function handleJoin(conn:Connection):void
-		{
+		{			
 			trace("Sucessfully connected to the multiplayer server");
-			gotoAndStop(2);
+			gotoAndStop(2);	 
+			
 			
 			connection = conn;
 			//Add disconnect listener
 			connection.addDisconnectHandler(handleDisconnect);
-					
-			//Add listener for messages of the type "hello"
-			connection.addMessageHandler("hello", function(m:Message){
-				trace("Recived a message with the type hello from the server");			 
-			})
 			
 			//In case server tells us that we should go away
 			connection.addMessageHandler("disconnect", function(m:Message){
 				gotoAndStop(3); 
 				trace("Disconnected from server.");			 
-			})			
-			
-			//Add message listener for users joining the room
-			connection.addMessageHandler("UserJoined", function(m:Message, userid:uint){
-				trace("Player with the userid", userid, "just joined the room");
-			})
+			})									
 			
 			//Add message listener for users leaving the room
-			connection.addMessageHandler("UserLeft", function(m:Message, userid:uint){
-				trace("Player with the userid", userid, "just left the room");
-			})
+			connection.addMessageHandler("UserLeft", userLeft)
 			
 			//Listen to all messages using a private function
 			connection.addMessageHandler("*", handleMessages)
@@ -82,33 +83,156 @@
 			stage.addEventListener(Event.ENTER_FRAME, everyFrame);		
 		}
 		
+		private function userLeft( message:Message)
+		{
+			removeChild(players[message.getInt(0)])
+			delete players[message.getInt(0)];
+		}
+		
 		private function handleMessages(message:Message)
 		{
+			//The time now
+			var messageTime:Number = (new Date()).getTime();
+			//The time since the last state update
+			var timeDiff:Number = messageTime - oldStateTime;
 			switch(message.type)
 			{
-				case "":
-					//do something
+				case "UserJoined":
+					players[message.getInt(0)] = new Player();
+					players[message.getInt(0)].x = message.getNumber(2);
+					players[message.getInt(0)].y = message.getNumber(3);
+					players[message.getInt(0)].rightPressed = false;
+					players[message.getInt(0)].leftPressed = false;
+					if(  message.getString(1) == 'First' )
+					{							
+							var colorT:ColorTransform = new ColorTransform();						
+							colorT.blueOffset = 0;
+							colorT.redOffset = 0;
+							colorT.greenOffset = 0;
+							players[message.getInt(0)].transform.colorTransform = colorT;
+					}
+					else if(  message.getString(1) == "Second" )
+					{
+							var colorT:ColorTransform = new ColorTransform();
+							colorT.blueOffset = 100;
+							colorT.redOffset = -100;
+							colorT.greenOffset = 150;							
+							players[message.getInt(0)].transform.colorTransform = colorT;
+					}
+					addChildAt(players[message.getInt(0)],0)					
 					break;
-				case "a":
-					//do something
+				case "info":
+					//Get your ID
+					myId = message.getInt(0)
+					//Load every existing player's data
+					for(var i:int=0;i<(message.length - 1)/6;i++)
+					{
+						players[message.getInt(i*6 + 1)] = new Player();
+						players[message.getInt(i*6 + 1)].x = message.getNumber(i*6 + 2);
+						players[message.getInt(i*6 + 1)].y = message.getNumber(i*6 + 3);
+						players[message.getInt(i*6 + 1)].rightPressed = message.getBoolean(i*6 + 4);
+						players[message.getInt(i*6 + 1)].leftPressed = message.getBoolean(i*6 + 5);
+						if(  message.getString(i*6 + 6) == 'First' )
+						{							
+								var colorT:ColorTransform = new ColorTransform();						
+								colorT.blueOffset = 0;
+								colorT.redOffset = 0;
+								colorT.greenOffset = 0;
+								players[message.getInt(i*6 + 1)].transform.colorTransform = colorT;
+						}
+						else if(  message.getString(i*6 + 6) == "Second" )
+						{
+								var colorT:ColorTransform = new ColorTransform();
+								colorT.blueOffset = 100;
+								colorT.redOffset = -100;
+								colorT.greenOffset = 150;							
+								players[message.getInt(i*6 + 1)].transform.colorTransform = colorT;
+						}
+						addChildAt(players[message.getInt(i*6 + 1)],0)
+					}
+					break;
+				case "state":
+					if(oldStateTime == 0)
+					{
+						oldStateTime = (new Date()).getTime()
+						return;
+					}
+					//This is a very rudementry timestamp correction method
+					//It is prone to error sometimes but is better then no correction.
+					//Without correction, this line would be just "players[message.getInt(i*3 + 1)].x = message.getNumber(i*3 + 2)"
+					for( var i:int = 0;i<(message.length - 1)/2;i++){
+						players[message.getInt(i*2 + 1)].x = message.getNumber(i*2 + 2); + 
+														(players[message.getInt(i*2 + 1)].rightPressed ? (timeDiff - message.getInt(0))/5 : 0) -
+														(players[message.getInt(i*2 + 1)].leftPressed ? (timeDiff - message.getInt(0))/5 : 0);
+						
+					}
+					//Take the weighted average of the expected message time and actual message time to get the old time
+					//This average is useful for adapting to systematic variations to latency
+					oldStateTime = ( ( oldStateTime + message.getInt(0) )*3 + (new Date()).getTime() )/4
+					break;
+				case "leftUp":
+					players[message.getInt(0)].leftPressed = false;
+					break;					
+				case "leftDown":
+					players[message.getInt(0)].leftPressed = true;
+					break;
+				case "rightUp":
+					players[message.getInt(0)].rightPressed = false;
+					break;
+				case "rightDown":
+					players[message.getInt(0)].rightPressed = true;
 					break;
 			}
 			trace("Recived the message", message)
 		}
 		
-		public function keyPressed(event:Event):void
-		{
-		
+		public function keyPressed(key:KeyboardEvent):void
+		{			
+			if (key.keyCode == 68||key.keyCode == 39 && !rightPressed) 
+			{
+				connection.send("rightDown");
+				rightPressed = true;
+			}
+			if (key.keyCode == 65||key.keyCode == 37 && !leftPressed) 
+			{
+				connection.send("leftDown");
+				leftPressed = true;
+			}
 		}
 		
-		public function keyReleased(event:Event):void
-		{
-			
+		public function keyReleased(key:KeyboardEvent):void
+		{			
+			if (key.keyCode == 68||key.keyCode == 39 && rightPressed) 
+			{
+				connection.send("rightUp");
+				rightPressed = false;
+			}
+			if (key.keyCode == 65||key.keyCode == 37 && leftPressed) 
+			{
+				connection.send("leftUp");
+				leftPressed = false;
+			}
 		}
 		
+		//Main game logic clientside
 		public function everyFrame(event:Event):void
 		{
+			//compute the time since last update
+			var nowTime:Number = (new Date()).getTime();
+			var timeDiff:Number = nowTime - oldTime;
+			oldTime = nowTime;
 			
+			for ( var player:String in players )
+			{				
+				if(players[player].rightPressed)
+				{
+					players[player].x += timeDiff/5
+				}
+				if(players[player].leftPressed)
+				{
+					players[player].x -= timeDiff/5
+				}
+			}
 		}
 		
 		private function handleDisconnect():void
