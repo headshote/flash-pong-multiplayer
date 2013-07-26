@@ -1,8 +1,15 @@
 ﻿package {
 	import flash.display.MovieClip
 	import playerio.*
-	public class MP_Pong extends MovieClip{
-		function MP_Pong(){
+	import flash.events.KeyboardEvent;
+	import flash.events.Event;
+	
+	public class MP_Pong extends MovieClip
+	{
+		var connection:Connection;
+		
+		function MP_Pong()
+		{
 			stop();
 			PlayerIO.connect(
 				stage,								//Referance to stage
@@ -13,14 +20,15 @@
 				null,								//Current PartnerPay partner.
 				handleConnect,						//Function executed on successful connect
 				handleError							//Function executed if we recive an error
-			);   
+			);   			
 		}
 		
-		private function handleConnect(client:Client):void{
+		private function handleConnect(client:Client):void
+		{
 			trace("Sucessfully connected to player.io");
 			
 			//Set developmentsever (Comment out to connect to your server online)
-			//client.multiplayer.developmentServer = "localhost:8184";
+			client.multiplayer.developmentServer = "localhost:8184";
 			
 			//Create pr join the room test
 			client.multiplayer.createJoinRoom(
@@ -35,10 +43,12 @@
 		}
 		
 		
-		private function handleJoin(connection:Connection):void{
+		private function handleJoin(conn:Connection):void
+		{
 			trace("Sucessfully connected to the multiplayer server");
 			gotoAndStop(2);
 			
+			connection = conn;
 			//Add disconnect listener
 			connection.addDisconnectHandler(handleDisconnect);
 					
@@ -46,6 +56,12 @@
 			connection.addMessageHandler("hello", function(m:Message){
 				trace("Recived a message with the type hello from the server");			 
 			})
+			
+			//In case server tells us that we should go away
+			connection.addMessageHandler("disconnect", function(m:Message){
+				gotoAndStop(3); 
+				trace("Disconnected from server.");			 
+			})			
 			
 			//Add message listener for users joining the room
 			connection.addMessageHandler("UserJoined", function(m:Message, userid:uint){
@@ -60,17 +76,48 @@
 			//Listen to all messages using a private function
 			connection.addMessageHandler("*", handleMessages)
 			
+			//Add event listeners
+			stage.addEventListener(KeyboardEvent.KEY_DOWN, keyPressed);
+			stage.addEventListener(KeyboardEvent.KEY_UP, keyReleased);
+			stage.addEventListener(Event.ENTER_FRAME, everyFrame);		
 		}
 		
-		private function handleMessages(m:Message){
-			trace("Recived the message", m)
+		private function handleMessages(message:Message)
+		{
+			switch(message.type)
+			{
+				case "":
+					//do something
+					break;
+				case "a":
+					//do something
+					break;
+			}
+			trace("Recived the message", message)
 		}
 		
-		private function handleDisconnect():void{
+		public function keyPressed(event:Event):void
+		{
+		
+		}
+		
+		public function keyReleased(event:Event):void
+		{
+			
+		}
+		
+		public function everyFrame(event:Event):void
+		{
+			
+		}
+		
+		private function handleDisconnect():void
+		{
 			trace("Disconnected from server")
 		}
 		
-		private function handleError(error:PlayerIOError):void{
+		private function handleError(error:PlayerIOError):void
+		{
 			trace("got",error)
 			gotoAndStop(3);
 
