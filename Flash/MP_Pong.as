@@ -9,9 +9,8 @@
 	{
 		var connection:Connection;
 		var players:Array;
-		var myId:int;
-		var leftPressed:Boolean;
-		var rightPressed:Boolean;	
+		var myBoard:Player;
+		var myId:int;	
 		//Time at the last frame
 		var oldTime:Number = (new Date()).getTime()
 		//Time at the last state update
@@ -31,8 +30,6 @@
 				handleError							//Function executed if we recive an error
 			);   
 			players = new Array();
-			leftPressed = false;
-			rightPressed = false;		
 		}	
 		
 		private function handleConnect(client:Client):void
@@ -98,7 +95,7 @@
 			switch(message.type)
 			{
 				case "UserJoined":
-					players[message.getInt(0)] = new Player();
+					players[message.getInt(0)] = new Player();					
 					players[message.getInt(0)].x = message.getNumber(2);
 					players[message.getInt(0)].y = message.getNumber(3);
 					players[message.getInt(0)].rightPressed = false;
@@ -124,6 +121,7 @@
 				case "info":
 					//Get your ID
 					myId = message.getInt(0)
+					myBoard = players[myId];
 					//Load every existing player's data
 					for(var i:int=0;i<(message.length - 1)/6;i++)
 					{
@@ -188,29 +186,29 @@
 		
 		public function keyPressed(key:KeyboardEvent):void
 		{			
-			if (key.keyCode == 68||key.keyCode == 39 && !rightPressed) 
+			if (key.keyCode == 68||key.keyCode == 39 && !myBoard.rightPressed) 
 			{
 				connection.send("rightDown");
-				rightPressed = true;
+				myBoard.rightPressed = true;
 			}
-			if (key.keyCode == 65||key.keyCode == 37 && !leftPressed) 
+			if (key.keyCode == 65||key.keyCode == 37 && !myBoard.leftPressed) 
 			{
 				connection.send("leftDown");
-				leftPressed = true;
+				myBoard.leftPressed = true;
 			}
 		}
 		
 		public function keyReleased(key:KeyboardEvent):void
 		{			
-			if (key.keyCode == 68||key.keyCode == 39 && rightPressed) 
+			if (key.keyCode == 68||key.keyCode == 39 && myBoard.rightPressed) 
 			{
 				connection.send("rightUp");
-				rightPressed = false;
+				myBoard.rightPressed = false;
 			}
-			if (key.keyCode == 65||key.keyCode == 37 && leftPressed) 
+			if (key.keyCode == 65||key.keyCode == 37 && myBoard.leftPressed) 
 			{
 				connection.send("leftUp");
-				leftPressed = false;
+				myBoard.leftPressed = false;
 			}
 		}
 		
