@@ -40,7 +40,7 @@
 			trace("Sucessfully connected to player.io");
 			
 			//Set developmentsever (Comment out to connect to your server online)
-			client.multiplayer.developmentServer = "localhost:8184";
+			//client.multiplayer.developmentServer = "localhost:8184";
 			
 			//Create pr join the room test
 			client.multiplayer.createJoinRoom(
@@ -83,12 +83,14 @@
 			stage.addEventListener(Event.ENTER_FRAME, everyFrame);		
 		}
 		
+		//removes user from stage and from attay of players if he leaves game
 		private function userLeft( message:Message)
 		{
 			removeChild(players[message.getInt(0)])
 			delete players[message.getInt(0)];
 		}
 		
+		//main handler for incomming messages from server
 		private function handleMessages(message:Message)
 		{
 			//The time now
@@ -97,13 +99,13 @@
 			var timeDiff:Number = messageTime - oldStateTime;
 			switch(message.type)
 			{
-				case "UserJoined":
+				case "UserJoined": //When user joined, add him to stage on clientside
 					players[message.getInt(0)] = new Player();					
 					players[message.getInt(0)].x = message.getNumber(2);
 					players[message.getInt(0)].y = message.getNumber(3);
 					players[message.getInt(0)].rightPressed = false;
 					players[message.getInt(0)].leftPressed = false;
-					if(  message.getString(1) == 'First' )
+					if(  message.getString(1) == 'First' ) //Determines which user joined and draws him on top or at the bottom
 					{							
 							var colorT:ColorTransform = new ColorTransform();						
 							colorT.blueOffset = 0;
@@ -121,16 +123,16 @@
 					}
 					addChildAt(players[message.getInt(0)],0)					
 					break;
-				case "info": //Message with info about the current scene, is sent ot user once when he connects to server
+				case "info": //Message with info about the current scene, is sent to user once when he connects to server
+					var i:int;
 					//Get your ID
 					myId = message.getInt(0)
 					myBoard = players[myId];
-					//Load every existing player's data
-					var i:int;
-					
+					//Load every existing player's data										
 					for( i = 0;i<(message.length - 1 - 4)/6;i++)
 					{
-						players[message.getInt(i*6 + 1)] = new Player();
+						if (players[message.getInt(i*6 + 1)] == null )
+							players[message.getInt(i*6 + 1)] = new Player();
 						players[message.getInt(i*6 + 1)].x = message.getNumber(i*6 + 2);
 						players[message.getInt(i*6 + 1)].y = message.getNumber(i*6 + 3);
 						players[message.getInt(i*6 + 1)].rightPressed = message.getBoolean(i*6 + 4);
@@ -162,7 +164,7 @@
 					ball.yVelocity = message.getNumber(i+3);
 					addChildAt(ball, 0)
 					break;
-				case "state":
+				case "state": //State update sent by server every tick to clients about everything on stage
 					var i:int;
 					if(oldStateTime == 0)
 					{
@@ -173,7 +175,7 @@
 					//It is prone to error sometimes but is better then no correction.
 					//Without correction, this line would be just "players[message.getInt(i*3 + 1)].x = message.getNumber(i*3 + 2)"
 					for( i = 0;i<(message.length - 3)/2;i++){
-						players[message.getInt(i*2 + 1)].x = message.getNumber(i*2 + 2); + 
+						players[message.getInt(i*2 + 1)].x = message.getNumber(i*2 + 2) + 
 														(players[message.getInt(i*2 + 1)].rightPressed ? (timeDiff - message.getInt(0))/5 : 0) -
 														(players[message.getInt(i*2 + 1)].leftPressed ? (timeDiff - message.getInt(0))/5 : 0);
 						
@@ -181,10 +183,11 @@
 					i = i*2 +1;
 					ball.x = message.getNumber(i);
 					ball.y = message.getNumber(i+1);
-					//expected message time and actual message time to get the old time
+					//Take the weighted average of the expected message time and actual message time to get the old time
 					//This average is useful for adapting to systematic variations to latency
-					oldStateTime =  oldStateTime + message.getInt(0) + (new Date()).getTime() 
+					oldStateTime = ( (oldStateTime + message.getInt(0))*3 + (new Date()).getTime() )/4
 					break;
+				//Setting up info from server about events of all players into our array for further extrapolation
 				case "leftUp":
 					players[message.getInt(0)].leftPressed = false;
 					break;					
@@ -201,6 +204,7 @@
 			trace("Recived the message", message)
 		}
 		
+		//KeyDown event handler
 		public function keyPressed(key:KeyboardEvent):void
 		{			
 			if (key.keyCode == 68||key.keyCode == 39 && !myBoard.rightPressed) 
@@ -215,6 +219,7 @@
 			}
 		}
 		
+		//keyUp event handler
 		public function keyReleased(key:KeyboardEvent):void
 		{			
 			if (key.keyCode == 68||key.keyCode == 39 && myBoard.rightPressed) 
@@ -237,17 +242,17 @@
 			var timeDiff:Number = nowTime - oldTime;
 			oldTime = nowTime;
 			
+			//Collision of ball with board, have to double-check on server after msg about collision received
 			if( ball.hitTestObject( myBoard ) )
 			{
-				trace("That's a hit!");
-				connection.send("hitBall");
-				//yDirection *= -1;
-				//hit.play();
-				//placing ball on top of player's paddle to avoid derping
-				//ball_mc.y = paddle_mc.y - ball_mc.height - paddle_mc.height /2; 
-				//checkHitLocation(paddle_mc);
+				//trace("That's a hit!");
+				connection.send("hitBall");				
 			}
 			
+			//CAUSES SEVERE THROWBACKS, SUPPOSED TO "PREDICT" SERVER RESPONCE AND 
+			//COMPENSATE LAGS BUT CAUSES MORE PROBLEMS THAN FIXES. NEEDS REENGINEERING
+			/*
+			//Move player objects based on their event values
 			for ( var player:String in players )
 			{				
 				if(players[player].rightPressed)
@@ -255,16 +260,16 @@
 					if( players[player].x >= stage.width - players[player].width )
 						players[player].x = stage.width - players[player].width;
 					else
-						players[player].x += timeDiff/5
+						players[player].x += timeDiff/5;
 				}
 				if(players[player].leftPressed)
 				{
 					if( players[player].x <= 0 )
 						players[player].x = 0;
 					else
-						players[player].x -= timeDiff/5
+						players[player].x -= timeDiff/5;
 				}
-			}
+			}*/
 		}
 		
 		private function handleDisconnect():void
