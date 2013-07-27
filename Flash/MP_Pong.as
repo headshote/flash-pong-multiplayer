@@ -8,9 +8,12 @@
 	public class MP_Pong extends MovieClip
 	{
 		var connection:Connection;
+		//Player info
 		var players:Array;
 		var myBoard:Player;
 		var myId:int;	
+		//Ball
+		var ball:Ball;
 		//Time at the last frame
 		var oldTime:Number = (new Date()).getTime()
 		//Time at the last state update
@@ -118,12 +121,14 @@
 					}
 					addChildAt(players[message.getInt(0)],0)					
 					break;
-				case "info":
+				case "info": //Message with info about the current scene, is sent ot user once when he connects to server
 					//Get your ID
 					myId = message.getInt(0)
 					myBoard = players[myId];
 					//Load every existing player's data
-					for(var i:int=0;i<(message.length - 1)/6;i++)
+					var i:int;
+					
+					for( i = 0;i<(message.length - 1 - 4)/6;i++)
 					{
 						players[message.getInt(i*6 + 1)] = new Player();
 						players[message.getInt(i*6 + 1)].x = message.getNumber(i*6 + 2);
@@ -148,8 +153,17 @@
 						}
 						addChildAt(players[message.getInt(i*6 + 1)],0)
 					}
+					//Load ball
+					i = i*6+1;
+					ball = new Ball();
+					ball.x = message.getNumber(i);
+					ball.y = message.getNumber(i+1);
+					ball.xVelocity = message.getNumber(i+2);
+					ball.yVelocity = message.getNumber(i+3);
+					addChildAt(ball, 0)
 					break;
 				case "state":
+					var i:int;
 					if(oldStateTime == 0)
 					{
 						oldStateTime = (new Date()).getTime()
@@ -158,15 +172,18 @@
 					//This is a very rudementry timestamp correction method
 					//It is prone to error sometimes but is better then no correction.
 					//Without correction, this line would be just "players[message.getInt(i*3 + 1)].x = message.getNumber(i*3 + 2)"
-					for( var i:int = 0;i<(message.length - 1)/2;i++){
+					for( i = 0;i<(message.length - 3)/2;i++){
 						players[message.getInt(i*2 + 1)].x = message.getNumber(i*2 + 2); + 
 														(players[message.getInt(i*2 + 1)].rightPressed ? (timeDiff - message.getInt(0))/5 : 0) -
 														(players[message.getInt(i*2 + 1)].leftPressed ? (timeDiff - message.getInt(0))/5 : 0);
 						
 					}
-					//Take the weighted average of the expected message time and actual message time to get the old time
+					i = i*2 +1;
+					ball.x = message.getNumber(i);
+					ball.y = message.getNumber(i+1);
+					//expected message time and actual message time to get the old time
 					//This average is useful for adapting to systematic variations to latency
-					oldStateTime = ( ( oldStateTime + message.getInt(0) )*3 + (new Date()).getTime() )/4
+					oldStateTime =  oldStateTime + message.getInt(0) + (new Date()).getTime() 
 					break;
 				case "leftUp":
 					players[message.getInt(0)].leftPressed = false;
@@ -220,15 +237,32 @@
 			var timeDiff:Number = nowTime - oldTime;
 			oldTime = nowTime;
 			
+			if( ball.hitTestObject( myBoard ) )
+			{
+				trace("That's a hit!");
+				connection.send("hitBall");
+				//yDirection *= -1;
+				//hit.play();
+				//placing ball on top of player's paddle to avoid derping
+				//ball_mc.y = paddle_mc.y - ball_mc.height - paddle_mc.height /2; 
+				//checkHitLocation(paddle_mc);
+			}
+			
 			for ( var player:String in players )
 			{				
 				if(players[player].rightPressed)
 				{
-					players[player].x += timeDiff/5
+					if( players[player].x >= stage.width - players[player].width )
+						players[player].x = stage.width - players[player].width;
+					else
+						players[player].x += timeDiff/5
 				}
 				if(players[player].leftPressed)
 				{
-					players[player].x -= timeDiff/5
+					if( players[player].x <= 0 )
+						players[player].x = 0;
+					else
+						players[player].x -= timeDiff/5
 				}
 			}
 		}

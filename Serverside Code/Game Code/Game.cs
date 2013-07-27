@@ -9,31 +9,66 @@ namespace MPPongCode
 {
 	public class Player : BasePlayer 
     {
-		public string Name;
+        public string Name;
         public float x;
         public float y;
 
         //location last state update
-        public float oldX = 0;
-        public float oldY = 0;
+        public float oldX;
+        public float oldY;
+
+        //Dimensions
+        public const float width= 154.30F;
+        public const float height = 29.15F;
 
         public bool rightPressed;
         public bool leftPressed;
 
         public Player()
         {
+            this.oldX = 0;
+            this.oldY = 0;
             this.rightPressed = false;
             this.leftPressed = false;
         }
 	}
 
+    public class Ball
+    {
+        public float x;
+        public float y;
+        public float xVelocity;
+        public float yVelocity;
+        public const float width = 27.10F;
+        public const float height = 24.80F;
+
+        public Ball() : this(300.0F, 250.0F, 2.0F, 2.0F)
+        {
+            
+        }
+
+        public Ball(float X, float Y, float xv, float yv)
+        {
+            this.x = X;
+            this.y = Y;
+            this.xVelocity = xv;
+            this.yVelocity = yv;
+        }
+    }
+
 	[RoomType("MPPongCode")]
 	public class GameCode : Game<Player> 
     {
+        public float stageWidth = 790.0F;
+        public float stageHeight = 600.0F;
+
         private DateTime oldTickTime = new DateTime();
         private DateTime oldStateTime = new DateTime();
         private TimeSpan timeDiff = new TimeSpan();
+
         private bool doState = false;
+
+        Ball ball;
 
 		// This method is called when an instance of your the game is created
 		public override void GameStarted() 
@@ -45,6 +80,8 @@ namespace MPPongCode
             //Timers 
             oldStateTime = DateTime.Now;
             oldTickTime = DateTime.Now;
+
+            ball = new Ball();
 
             AddTimer(tick, 25);
 			
@@ -89,13 +126,18 @@ namespace MPPongCode
 
             Message infoMessage = Message.Create("info");
 
+            //addd info  about current player( that has just joined)
             infoMessage.Add(player.Id);
-
+            //add all of the players in the scene
             foreach( Player guy in Players )
             {
                 if( guy != player)
                     infoMessage.Add( guy.Id, guy.x, guy.y, guy.rightPressed, guy.leftPressed, guy.Name);
             }
+            //For ball
+            infoMessage.Add(ball.x, ball.y, ball.xVelocity, ball.yVelocity);
+
+            //send it to player that has just joined
             player.Send(infoMessage);
 		}
 
@@ -130,6 +172,17 @@ namespace MPPongCode
                     Broadcast("rightDown", player.Id);
                     player.rightPressed = true;
                     break;
+                case "hitBall":    //got msg about collision from client
+                    if( this.ballCollision(player) ) //Double check collision on server
+                    {
+                        this.checkHitLocation(player); //Changes angle of movement based on which part of the board was hit by ball
+                        if( player.Name == "First")
+                            ball.y = player.y - Ball.height - Player.height / 2 - 1; //placing ball on top of player1's paddle to avoid derping
+                        else if( player.Name == "Second")
+                            ball.y = player.y + Player.height + Ball.height / 2 + 1; //placing ball below of player2's paddle to avoid derping
+                        ball.yVelocity *= -1; //Bounce
+                    }                    
+                    break;
 			}
             Console.WriteLine(message.Type);
 		}
@@ -150,13 +203,22 @@ namespace MPPongCode
             {
                 if (guy.rightPressed)
                 {
-                    guy.x += msTimeDiff / 5;
+                    if (guy.x >= this.stageWidth - Player.width) //keep players in bounds of stage
+                        guy.x = this.stageWidth - Player.width;
+                    else
+                        guy.x += msTimeDiff / 5;
                 }
                 if (guy.leftPressed)
                 {
-                    guy.x -= msTimeDiff / 5;
+                    if (guy.x <= 0)//keep players in bounds of stage
+                        guy.x = 0;
+                    else
+                        guy.x -= msTimeDiff / 5;
                 }
             }
+
+            //Move ball
+            this.moveBall();
 
             //Sending state update message every other tick
             if (doState)
@@ -167,7 +229,6 @@ namespace MPPongCode
 
                 Message stateUpdateMessage = Message.Create("state");
                 stateUpdateMessage.Add(msTimeDiff);
-
                 foreach (Player guy in Players)
                 {
                     //Send update message containing only players tha moved
@@ -177,8 +238,12 @@ namespace MPPongCode
                         guy.oldX = guy.x;
                     }
                 }
-                if ( stateUpdateMessage.Count >= 3)
-                    Broadcast(stateUpdateMessage);
+                //for ball position
+                stateUpdateMessage.Add(ball.x, ball.y);
+
+                //Broadcasting curent state of the game to everyone in the room
+                Broadcast(stateUpdateMessage);
+
                 oldStateTime = nowTime;
                 doState = false;
             }
@@ -186,6 +251,68 @@ namespace MPPongCode
             {
                 doState = true;
             }
+        }
+
+        //Handles movement of ball and it's collisions with WALLS ONLY
+        //Called regularly by tick()
+        private void moveBall()
+        {
+            //Bouncing off side walls
+            if (ball.x <= 0)
+            {
+                ball.x = 0;
+                ball.xVelocity *= -1;
+            }
+            else if (ball.x >= this.stageWidth - Ball.width)
+            {
+                ball.x = this.stageWidth - Ball.width;
+                ball.xVelocity *= -1;
+            }
+
+            //Bouncing off top and bottom parts of scene
+            if (ball.y <= 0)
+            {
+                ball.y = 0;
+                ball.yVelocity *= -1;
+            }
+            else if (ball.y >= this.stageHeight - Ball.height)
+            {
+                ball.y = this.stageHeight - Ball.height;
+                ball.yVelocity *= -1;
+            }
+            //Move ball
+            ball.x += ball.xVelocity;
+            ball.y += ball.yVelocity;
+        }
+
+        //Will change angle of ball movement based on which part of boaard was hit
+        private void checkHitLocation(Player player)
+        {
+            float hitPercent;
+	        float ballPosition = ball.x - player.x;
+	        hitPercent = (ballPosition / (Player.width - Ball.width) ) - 0.5F;
+	        ball.xVelocity = hitPercent * 5;
+	        //ball.yVelocity *= 1.05F;
+        }
+
+        //For serverside double checking of collisions
+        private bool ballCollision(Player player)
+        {
+            //Determone coords of centers of board and ball
+            float centerBallY = ball.y + Ball.height/2;
+            float centerBoardY = player.y + Player.height/2;
+            float centerBallX = ball.x + Ball.width / 2;
+            float centerBoardX = player.x + Player.width / 2;
+            //measure distances between centers
+            if (Math.Abs(centerBallY - centerBoardY) <= (Ball.height / 2 + Player.height / 2))
+            {
+                if (Math.Abs(centerBallX - centerBoardX) <= (Ball.width / 2 + Player.width / 2))
+                 
+                 {
+                   return true;
+                 }
+            }
+            return false;
         }
 	}
 }
