@@ -251,7 +251,7 @@
 			
 			//CAUSES SEVERE THROWBACKS, SUPPOSED TO "PREDICT" SERVER RESPONCE AND 
 			//COMPENSATE LAGS BUT CAUSES MORE PROBLEMS THAN FIXES. NEEDS REENGINEERING
-			/*
+			
 			//Move player objects based on their event values
 			for ( var player:String in players )
 			{				
@@ -260,16 +260,16 @@
 					if( players[player].x >= stage.width - players[player].width )
 						players[player].x = stage.width - players[player].width;
 					else
-						players[player].x += timeDiff/5;
+						players[player].x += timeDiff/25;
 				}
 				if(players[player].leftPressed)
 				{
 					if( players[player].x <= 0 )
 						players[player].x = 0;
 					else
-						players[player].x -= timeDiff/5;
+						players[player].x -= timeDiff/25;
 				}
-			}*/
+			}
 		}
 		
 		private function handleDisconnect():void
