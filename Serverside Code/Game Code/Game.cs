@@ -42,7 +42,7 @@ namespace MPPongCode
         public const float width = 27.10F;
         public const float height = 24.80F;
 
-        public Ball() : this(300.0F, 250.0F, 2.0F, 2.0F)
+        public Ball() : this(300.0F, 250.0F, 5.0F, 5.0F)
         {
             
         }
@@ -206,14 +206,14 @@ namespace MPPongCode
                     if (guy.x >= this.stageWidth - Player.width) //keep players in bounds of stage
                         guy.x = this.stageWidth - Player.width;
                     else
-                        guy.x += msTimeDiff / 5;
+                        guy.x += msTimeDiff / 2;
                 }
                 if (guy.leftPressed)
                 {
                     if (guy.x <= 0)//keep players in bounds of stage
                         guy.x = 0;
                     else
-                        guy.x -= msTimeDiff / 5;
+                        guy.x -= msTimeDiff / 2;
                 }
             }
 
@@ -222,13 +222,13 @@ namespace MPPongCode
 
             //Sending state update message every other tick
             if (doState)
-            {
+            {                
                 //Time since last state update
                 timeDiff = nowTime - oldStateTime;
                 msTimeDiff = timeDiff.Milliseconds;
 
                 Message stateUpdateMessage = Message.Create("state");
-                stateUpdateMessage.Add(msTimeDiff);
+                stateUpdateMessage.Add(msTimeDiff); //add time difference between state update msgs on serverside
                 foreach (Player guy in Players)
                 {
                     //Send update message containing only players tha moved
@@ -239,13 +239,13 @@ namespace MPPongCode
                     }
                 }
                 //for ball position
-                stateUpdateMessage.Add(ball.x, ball.y);
+                stateUpdateMessage.Add(ball.x, ball.y, ball.xVelocity, ball.yVelocity);
 
                 //Broadcasting curent state of the game to everyone in the room
                 Broadcast(stateUpdateMessage);
 
                 oldStateTime = nowTime;
-                doState = false;
+                doState = true;
             }
             else
             {
@@ -292,7 +292,7 @@ namespace MPPongCode
 	        float ballPosition = ball.x - player.x;
 	        hitPercent = (ballPosition / (Player.width - Ball.width) ) - 0.5F;
 	        ball.xVelocity = hitPercent * 5;
-	        //ball.yVelocity *= 1.05F;
+	        ball.yVelocity *= 1.0005F; //slightly increase speed with each hit
         }
 
         //For serverside double checking of collisions

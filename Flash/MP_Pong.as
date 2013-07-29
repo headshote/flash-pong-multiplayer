@@ -15,13 +15,17 @@
 		//Ball
 		var ball:Ball;
 		//Time at the last frame
-		var oldTime:Number = (new Date()).getTime()
+		var oldTime:Number = (new Date()).getTime();
 		//Time at the last state update
-		var oldStateTime:Number = 0
+		var oldStateTime:Number;
+		var serverTimeDiff:int;
 		
 		function MP_Pong()
 		{
-			stop();
+			addEventListener(Event.ADDED_TO_STAGE, init);
+			oldStateTime = 0;
+			stop();			
+			
 			PlayerIO.connect(
 				stage,								//Referance to stage
 				"multiplayer-pong-jed5uk4mnkx6pgpynxeva",			//Game id (Get your own at playerio.com)
@@ -35,12 +39,19 @@
 			players = new Array();
 		}	
 		
+		//init function, called once class is added to stage
+		function init(event:Event):void
+		{
+			removeEventListener(Event.ADDED_TO_STAGE, init);
+			stage.frameRate = 40;
+		}
+		
 		private function handleConnect(client:Client):void
 		{
 			trace("Sucessfully connected to player.io");
 			
 			//Set developmentsever (Comment out to connect to your server online)
-			//client.multiplayer.developmentServer = "localhost:8184";
+			client.multiplayer.developmentServer = "localhost:8184";
 			
 			//Create pr join the room test
 			client.multiplayer.createJoinRoom(
@@ -166,6 +177,8 @@
 					break;
 				case "state": //State update sent by server every tick to clients about everything on stage
 					var i:int;
+					serverTimeDiff = message.getInt(0);
+					
 					if(oldStateTime == 0)
 					{
 						oldStateTime = (new Date()).getTime()
@@ -174,15 +187,17 @@
 					//This is a very rudementry timestamp correction method
 					//It is prone to error sometimes but is better then no correction.
 					//Without correction, this line would be just "players[message.getInt(i*3 + 1)].x = message.getNumber(i*3 + 2)"
-					for( i = 0;i<(message.length - 3)/2;i++){
+					for( i = 0;i<(message.length - 5)/2;i++){
 						players[message.getInt(i*2 + 1)].x = message.getNumber(i*2 + 2) + 
-														(players[message.getInt(i*2 + 1)].rightPressed ? (timeDiff - message.getInt(0))/5 : 0) -
-														(players[message.getInt(i*2 + 1)].leftPressed ? (timeDiff - message.getInt(0))/5 : 0);
+														(players[message.getInt(i*2 + 1)].rightPressed ? (timeDiff - message.getInt(0))/2 : 0) -
+														(players[message.getInt(i*2 + 1)].leftPressed ? (timeDiff - message.getInt(0))/2 : 0);
 						
 					}
 					i = i*2 +1;
 					ball.x = message.getNumber(i);
 					ball.y = message.getNumber(i+1);
+					ball.xVelocity = message.getNumber(i+2);
+					ball.yVelocity = message.getNumber(i+3);
 					//Take the weighted average of the expected message time and actual message time to get the old time
 					//This average is useful for adapting to systematic variations to latency
 					oldStateTime = ( (oldStateTime + message.getInt(0))*3 + (new Date()).getTime() )/4
@@ -241,7 +256,7 @@
 			var nowTime:Number = (new Date()).getTime();
 			var timeDiff:Number = nowTime - oldTime;
 			oldTime = nowTime;
-			
+			trace(serverTimeDiff);
 			//Collision of ball with board, have to double-check on server after msg about collision received
 			if( ball.hitTestObject( myBoard ) )
 			{
@@ -249,10 +264,12 @@
 				connection.send("hitBall");				
 			}
 			
-			//CAUSES SEVERE THROWBACKS, SUPPOSED TO "PREDICT" SERVER RESPONCE AND 
-			//COMPENSATE LAGS BUT CAUSES MORE PROBLEMS THAN FIXES. NEEDS REENGINEERING
 			
-			//Move player objects based on their event values
+			//predict ball movements
+			ball.x += ball.xVelocity;
+			ball.y += ball.yVelocity;
+			
+			//Move player objects based on their event values, sort of prediction for players
 			for ( var player:String in players )
 			{				
 				if(players[player].rightPressed)
@@ -260,14 +277,14 @@
 					if( players[player].x >= stage.width - players[player].width )
 						players[player].x = stage.width - players[player].width;
 					else
-						players[player].x += timeDiff/25;
+						players[player].x += timeDiff/10;
 				}
 				if(players[player].leftPressed)
 				{
 					if( players[player].x <= 0 )
 						players[player].x = 0;
 					else
-						players[player].x -= timeDiff/25;
+						players[player].x -= timeDiff/10;
 				}
 			}
 		}
