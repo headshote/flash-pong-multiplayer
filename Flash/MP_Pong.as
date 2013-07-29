@@ -51,7 +51,7 @@
 			trace("Sucessfully connected to player.io");
 			
 			//Set developmentsever (Comment out to connect to your server online)
-			client.multiplayer.developmentServer = "localhost:8184";
+			//client.multiplayer.developmentServer = "localhost:8184";
 			
 			//Create pr join the room test
 			client.multiplayer.createJoinRoom(
@@ -107,7 +107,7 @@
 			//The time now
 			var messageTime:Number = (new Date()).getTime();
 			//The time since the last state update
-			var timeDiff:Number = messageTime - oldStateTime;
+			var timeStateDiff:Number = messageTime - oldStateTime;
 			switch(message.type)
 			{
 				case "UserJoined": //When user joined, add him to stage on clientside
@@ -148,7 +148,7 @@
 						players[message.getInt(i*6 + 1)].y = message.getNumber(i*6 + 3);
 						players[message.getInt(i*6 + 1)].rightPressed = message.getBoolean(i*6 + 4);
 						players[message.getInt(i*6 + 1)].leftPressed = message.getBoolean(i*6 + 5);
-						if(  message.getString(i*6 + 6) == 'First' )
+						if(  message.getString(i*6 + 6) == 'First' ) //Give some distinct color and position at unique place
 						{							
 								var colorT:ColorTransform = new ColorTransform();						
 								colorT.blueOffset = 0;
@@ -156,7 +156,7 @@
 								colorT.greenOffset = 0;
 								players[message.getInt(i*6 + 1)].transform.colorTransform = colorT;
 						}
-						else if(  message.getString(i*6 + 6) == "Second" )
+						else if(  message.getString(i*6 + 6) == "Second" ) //Give some distinct color and position at unique place
 						{
 								var colorT:ColorTransform = new ColorTransform();
 								colorT.blueOffset = 100;
@@ -189,15 +189,18 @@
 					//Without correction, this line would be just "players[message.getInt(i*3 + 1)].x = message.getNumber(i*3 + 2)"
 					for( i = 0;i<(message.length - 5)/2;i++){
 						players[message.getInt(i*2 + 1)].x = message.getNumber(i*2 + 2) + 
-														(players[message.getInt(i*2 + 1)].rightPressed ? (timeDiff - message.getInt(0))/2 : 0) -
-														(players[message.getInt(i*2 + 1)].leftPressed ? (timeDiff - message.getInt(0))/2 : 0);
+														(players[message.getInt(i*2 + 1)].rightPressed ? (serverTimeDiff/2)* ( Math.abs(timeStateDiff - serverTimeDiff) / (1000/stage.frameRate) ) : 0) -
+														(players[message.getInt(i*2 + 1)].leftPressed  ? (serverTimeDiff/2)* ( Math.abs(timeStateDiff - serverTimeDiff) / (1000/stage.frameRate) ) : 0);
 						
 					}
 					i = i*2 +1;
-					ball.x = message.getNumber(i);
-					ball.y = message.getNumber(i+1);
+					//Move ball with some prediction					
 					ball.xVelocity = message.getNumber(i+2);
 					ball.yVelocity = message.getNumber(i+3);
+					//position_of_obj = pos_of_obj_from_server + Velocity_of_object * ping_time_in_frames
+					ball.x = message.getNumber(i) + ball.xVelocity * ( Math.abs(timeStateDiff - serverTimeDiff) / (1000/stage.frameRate) );
+					ball.y = message.getNumber(i+1) + ball.yVelocity * ( Math.abs(timeStateDiff - serverTimeDiff) / (1000/stage.frameRate) );
+					
 					//Take the weighted average of the expected message time and actual message time to get the old time
 					//This average is useful for adapting to systematic variations to latency
 					oldStateTime = ( (oldStateTime + message.getInt(0))*3 + (new Date()).getTime() )/4
@@ -252,9 +255,9 @@
 		//Main game logic clientside
 		public function everyFrame(event:Event):void
 		{
-			//compute the time since last update
+			//compute the time since last fraame update
 			var nowTime:Number = (new Date()).getTime();
-			var timeDiff:Number = nowTime - oldTime;
+			var timeFrameDiff:Number = nowTime - oldTime;
 			oldTime = nowTime;
 			trace(serverTimeDiff);
 			//Collision of ball with board, have to double-check on server after msg about collision received
@@ -262,14 +265,9 @@
 			{
 				//trace("That's a hit!");
 				connection.send("hitBall");				
-			}
+			}				
 			
-			
-			//predict ball movements
-			ball.x += ball.xVelocity;
-			ball.y += ball.yVelocity;
-			
-			//Move player objects based on their event values, sort of prediction for players
+			//Move player objects based on their event values, sort of additional prediction for players, some extra smoothing
 			for ( var player:String in players )
 			{				
 				if(players[player].rightPressed)
@@ -277,14 +275,14 @@
 					if( players[player].x >= stage.width - players[player].width )
 						players[player].x = stage.width - players[player].width;
 					else
-						players[player].x += timeDiff/10;
+						players[player].x += (serverTimeDiff/8) * ( Math.abs(timeFrameDiff - serverTimeDiff) / (1000/stage.frameRate) );
 				}
 				if(players[player].leftPressed)
 				{
 					if( players[player].x <= 0 )
 						players[player].x = 0;
 					else
-						players[player].x -= timeDiff/10;
+						players[player].x -= (serverTimeDiff/8) * ( Math.abs(timeFrameDiff - serverTimeDiff) / (1000/stage.frameRate) );
 				}
 			}
 		}
