@@ -59,18 +59,23 @@ namespace MPPongCode
 	[RoomType("MPPongCode")]
 	public class GameCode : Game<Player> 
     {
+        //Parameters of game stage
         public float stageWidth = 790.0F;
         public float stageHeight = 600.0F;
 
+        //For time measurement
         private DateTime oldTickTime = new DateTime();
         private DateTime oldStateTime = new DateTime();
         private TimeSpan timeDiff = new TimeSpan();
-
-        private bool doState = false;
-
+        
+        //Ball object
         Ball ball;
 
-		// This method is called when an instance of your the game is created
+        /*******************************************************************
+         *************MAIN FUNCTIONS, CONTAIN GENERAL GAME LOGIC************
+         *******************************************************************/
+
+        // This method is called when an instance of your the game is created
 		public override void GameStarted() 
         {
 			// anything you write to the Console will show up in the 
@@ -173,15 +178,7 @@ namespace MPPongCode
                     player.rightPressed = true;
                     break;
                 case "hitBall":    //got msg about collision from client
-                    if( this.ballCollision(player) ) //Double check collision on server
-                    {
-                        this.checkHitLocation(player); //Changes angle of movement based on which part of the board was hit by ball
-                        if( player.Name == "First")
-                            ball.y = player.y - Ball.height - Player.height / 2 - 1; //placing ball on top of player1's paddle to avoid derping
-                        else if( player.Name == "Second")
-                            ball.y = player.y + Player.height + Ball.height / 2 + 1; //placing ball below of player2's paddle to avoid derping
-                        ball.yVelocity *= -1; //Bounce
-                    }                    
+                    processCollision(player);                                     
                     break;
 			}
             Console.WriteLine(message.Type);
@@ -201,6 +198,7 @@ namespace MPPongCode
             //Move each player
             foreach (Player guy in Players)
             {
+                processCollision(guy);
                 if (guy.rightPressed)
                 {
                     if (guy.x >= this.stageWidth - Player.width) //keep players in bounds of stage
@@ -220,38 +218,13 @@ namespace MPPongCode
             //Move ball
             this.moveBall();
 
-            //Sending state update message every other tick
-            if (doState)
-            {                
-                //Time since last state update
-                timeDiff = nowTime - oldStateTime;
-                msTimeDiff = timeDiff.Milliseconds;
-
-                Message stateUpdateMessage = Message.Create("state");
-                stateUpdateMessage.Add(msTimeDiff); //add time difference between state update msgs on serverside
-                foreach (Player guy in Players)
-                {
-                    //Send update message containing only players tha moved
-                    if (guy.oldX != guy.x )
-                    {
-                        stateUpdateMessage.Add(guy.Id, guy.x);
-                        guy.oldX = guy.x;
-                    }
-                }
-                //for ball position
-                stateUpdateMessage.Add(ball.x, ball.y, ball.xVelocity, ball.yVelocity);
-
-                //Broadcasting curent state of the game to everyone in the room
-                Broadcast(stateUpdateMessage);
-
-                oldStateTime = nowTime;
-                doState = true;
-            }
-            else
-            {
-                doState = true;
-            }
+            //Sending state update message every tick
+            doState(nowTime, msTimeDiff);                     
         }
+
+        /**********************************************************************************************
+         *********HELPER FUNCTIONS (CALLED BY MAIN FUNCTIONS, DOING SPECIFIC LOWER LEVEL STUFF)********
+         **********************************************************************************************/
 
         //Handles movement of ball and it's collisions with WALLS ONLY
         //Called regularly by tick()
@@ -260,11 +233,13 @@ namespace MPPongCode
             //Bouncing off side walls
             if (ball.x <= 0)
             {
+                wasHit();
                 ball.x = 0;
                 ball.xVelocity *= -1;
             }
             else if (ball.x >= this.stageWidth - Ball.width)
             {
+                wasHit();
                 ball.x = this.stageWidth - Ball.width;
                 ball.xVelocity *= -1;
             }
@@ -272,11 +247,13 @@ namespace MPPongCode
             //Bouncing off top and bottom parts of scene
             if (ball.y <= 0)
             {
+                wasHit();
                 ball.y = 0;
                 ball.yVelocity *= -1;
             }
             else if (ball.y >= this.stageHeight - Ball.height)
             {
+                wasHit();
                 ball.y = this.stageHeight - Ball.height;
                 ball.yVelocity *= -1;
             }
@@ -313,6 +290,51 @@ namespace MPPongCode
                  }
             }
             return false;
+        }
+
+        //Creates game state update msg and broadcasts it to all players
+        private void doState(DateTime nowTime, int msTimeDiff)
+        {     
+            Message stateUpdateMessage = Message.Create("state");
+            stateUpdateMessage.Add(msTimeDiff); //add time difference between state update msgs on serverside
+            foreach (Player guy in Players)
+            {
+                //Send update message containing only players tha moved
+                if (guy.oldX != guy.x)
+                {
+                    stateUpdateMessage.Add(guy.Id, guy.x);
+                    guy.oldX = guy.x;
+                }
+            }
+            //for ball position
+            stateUpdateMessage.Add(ball.x, ball.y, ball.xVelocity, ball.yVelocity);
+
+            //Broadcasting curent state of the game to everyone in the room
+            Broadcast(stateUpdateMessage);
+            //Setting time since last state update (and tick at the same time)
+            oldStateTime = nowTime;
+        }
+
+        //Will be called every time ball collides with anything;
+        private void wasHit()
+        {
+            //Tell everyone that ball collided with something, and send tick time interval, ball coords and params
+            Broadcast("hitBall", ball.x, ball.y, ball.xVelocity, ball.yVelocity);
+        }
+
+        //Fcn that simulates rudimentary physics for ball bouncing off boards
+        private void processCollision(Player player)
+        {
+            if (this.ballCollision(player)) //Double check collision on server
+            {
+                wasHit();
+                this.checkHitLocation(player); //Changes angle of movement based on which part of the board was hit by ball
+                if (player.Name == "First")
+                    ball.y = player.y - Ball.height - Player.height / 2; //placing ball on top of player1's paddle to avoid derping
+                else if (player.Name == "Second")
+                    ball.y = player.y + Player.height + Ball.height / 2; //placing ball below of player2's paddle to avoid derping
+                ball.yVelocity *= -1; //Bounce
+            }   
         }
 	}
 }

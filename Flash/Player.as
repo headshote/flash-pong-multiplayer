@@ -6,7 +6,7 @@
 	
 	public class Player extends mcBoard
 	{
-		
+		public var pName:String;
 		
 		public var rightPressed:Boolean;
 		public var leftPressed:Boolean;

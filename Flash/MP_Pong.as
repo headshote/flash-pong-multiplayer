@@ -19,12 +19,16 @@
 		//Time at the last state update
 		var oldStateTime:Number;
 		var serverTimeDiff:int;
+		//Sound
+		var hitSound:Hit;
 		
 		function MP_Pong()
 		{
 			addEventListener(Event.ADDED_TO_STAGE, init);
 			oldStateTime = 0;
 			stop();			
+			
+			hitSound = new Hit();
 			
 			PlayerIO.connect(
 				stage,								//Referance to stage
@@ -116,6 +120,7 @@
 					players[message.getInt(0)].y = message.getNumber(3);
 					players[message.getInt(0)].rightPressed = false;
 					players[message.getInt(0)].leftPressed = false;
+					players[message.getInt(0)].pName = message.getString(1);
 					if(  message.getString(1) == 'First' ) //Determines which user joined and draws him on top or at the bottom
 					{							
 							var colorT:ColorTransform = new ColorTransform();						
@@ -148,6 +153,7 @@
 						players[message.getInt(i*6 + 1)].y = message.getNumber(i*6 + 3);
 						players[message.getInt(i*6 + 1)].rightPressed = message.getBoolean(i*6 + 4);
 						players[message.getInt(i*6 + 1)].leftPressed = message.getBoolean(i*6 + 5);
+						players[message.getInt(i*6 + 1)].pName = message.getString(i*6 + 6);
 						if(  message.getString(i*6 + 6) == 'First' ) //Give some distinct color and position at unique place
 						{							
 								var colorT:ColorTransform = new ColorTransform();						
@@ -218,6 +224,14 @@
 				case "rightDown":
 					players[message.getInt(0)].rightPressed = true;
 					break;
+				case "hitBall":
+					hitSound.play();
+					ball.xVelocity = message.getNumber(2);
+					ball.yVelocity = message.getNumber(3);
+					//position_of_obj = pos_of_obj_from_server + Velocity_of_object * ping_time_in_frames
+					ball.x = message.getNumber(0);
+					ball.y = message.getNumber(1);
+					break;
 			}
 			trace("Recived the message", message)
 		}
@@ -255,14 +269,28 @@
 		//Main game logic clientside
 		public function everyFrame(event:Event):void
 		{
+			//trace(myBoard.pName);
 			//compute the time since last fraame update
 			var nowTime:Number = (new Date()).getTime();
 			var timeFrameDiff:Number = nowTime - oldTime;
 			oldTime = nowTime;
-			trace(serverTimeDiff);
+			//trace(serverTimeDiff);
 			//Collision of ball with board, have to double-check on server after msg about collision received
 			if( ball.hitTestObject( myBoard ) )
 			{
+				/*
+				if ( myBoard.pName == 'First' )
+				{
+					ball.y = ball.y = myBoard.y - ball.height - myBoard.height / 2 ; 
+				}
+				else if ( myBoard.pName == 'Second' )
+				{
+					ball.y = ball.y = myBoard.y + myBoard.height + ball.height / 2 ;
+				}*/
+				//Switch ball direction and move it a bit in advance (again, prediction of server responce)
+				//timeFrameDiff - serverTimeDiff is more of difference between framerate and tickrate than ping though
+				ball.yVelocity *= -1*( Math.abs(timeFrameDiff - serverTimeDiff) / (1000/stage.frameRate) );
+				ball.y += ball.yVelocity;
 				//trace("That's a hit!");
 				connection.send("hitBall");				
 			}				
