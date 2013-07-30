@@ -55,7 +55,7 @@
 			trace("Sucessfully connected to player.io");
 			
 			//Set developmentsever (Comment out to connect to your server online)
-			client.multiplayer.developmentServer = "localhost:8184";
+			//client.multiplayer.developmentServer = "localhost:8184";
 			
 			//Create pr join the room test
 			client.multiplayer.createJoinRoom(
@@ -146,7 +146,7 @@
 					myId = message.getInt(0)
 					myBoard = players[myId];
 					//Load every existing player's data										
-					for( i = 0;i<(message.length - 1 - 4)/6;i++)
+					for( i = 0;i<(message.length - 1 - 4)/7;i++)
 					{
 						if (players[message.getInt(i*6 + 1)] == null )
 							players[message.getInt(i*6 + 1)] = new Player();
@@ -155,6 +155,7 @@
 						players[message.getInt(i*6 + 1)].rightPressed = message.getBoolean(i*6 + 4);
 						players[message.getInt(i*6 + 1)].leftPressed = message.getBoolean(i*6 + 5);
 						players[message.getInt(i*6 + 1)].pName = message.getString(i*6 + 6);
+						players[message.getInt(i*6 + 1)].score = message.getString(i*6 + 7);
 						if(  message.getString(i*6 + 6) == 'First' ) //Give some distinct color and position at unique place
 						{							
 								var colorT:ColorTransform = new ColorTransform();						
@@ -232,6 +233,23 @@
 					//position_of_obj = pos_of_obj_from_server + Velocity_of_object * ping_time_in_frames
 					ball.x = message.getNumber(0);
 					ball.y = message.getNumber(1);
+					break;
+				case "score": //msg about changes in user score
+					var enemyScore:int;
+					
+					//set the score from the msg
+					players[message.getInt(0)].score = message.getInt(1);
+					
+					//Since score is sent only when someone scores, display scores, to show players what has changed
+					score_mc.slide_mc.player_txt.text = "Player: " + myBoard.score;
+					//find the enemy to display
+					for ( var player:String in players )
+					{
+						if ( players[player] != myBoard)
+							enemyScore = players[player].score;
+					}
+					score_mc.slide_mc.enemy_txt.text = "Enemy: " + enemyScore;
+					score_mc.gotoAndPlay(2);
 					break;
 			}
 			trace("Recived the message", message)

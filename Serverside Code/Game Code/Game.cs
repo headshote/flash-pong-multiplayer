@@ -13,6 +13,8 @@ namespace MPPongCode
         public float x;
         public float y;
 
+        public int score;
+
         //location last state update
         public float oldX;
         public float oldY;
@@ -26,6 +28,7 @@ namespace MPPongCode
 
         public Player()
         {
+            this.score = 0;
             this.oldX = 0;
             this.oldY = 0;
             this.rightPressed = false;
@@ -155,7 +158,7 @@ namespace MPPongCode
             foreach( Player guy in Players )
             {
                 if( guy != player)
-                    infoMessage.Add( guy.Id, guy.x, guy.y, guy.rightPressed, guy.leftPressed, guy.Name);
+                    infoMessage.Add( guy.Id, guy.x, guy.y, guy.rightPressed, guy.leftPressed, guy.Name, guy.score);
             }
             //For ball
             infoMessage.Add(ball.x, ball.y, ball.xVelocity, ball.yVelocity);
@@ -262,22 +265,74 @@ namespace MPPongCode
                 ball.xVelocity *= -1;
             }
 
-            //Bouncing off top and bottom parts of scene
+            //Collsion with top and bottom parts of scene
             if (ball.y <= 0)
             {
-                wasHit();
-                ball.y = 0;
-                ball.yVelocity *= -1;
+                if (PlayerCount >= 2) //only do score testing and ball position resetting if both players are in place
+                    hitBackWall("Second"); //Second player just missed the ball
+                else //Otherwise just bounce
+                {
+                    wasHit();
+                    ball.y = 0;
+                    ball.yVelocity *= -1;
+                }
             }
-            else if (ball.y >= this.stageHeight - Ball.height)
+            else if (ball.y >= this.stageHeight - Ball.height) 
             {
-                wasHit();
-                ball.y = this.stageHeight - Ball.height;
-                ball.yVelocity *= -1;
+                if (PlayerCount >= 2) //only do score testing and ball position resetting if both players are in place
+                    hitBackWall("First"); //First missed
+                else
+                {
+                    wasHit();
+                    ball.y = this.stageHeight - Ball.height;
+                    ball.yVelocity *= -1;
+                }
             }
             //Move ball
             ball.x += ball.xVelocity;
             ball.y += ball.yVelocity;
+        }
+
+        //Happens when walls behind player's boards were hit by ball
+        //resets ball position to appropriate player's board, increments scrore, pName - loser's name
+        private void hitBackWall(string pName)
+        {
+            Player playerMissed ; //this player just missed the ball
+            Player playerHit; //this one just scored
+
+            //Fuck the police
+            playerMissed = new Player();
+            playerHit = new Player();
+
+            //Find the winner and loser
+            foreach( Player guy in Players )
+            {
+                if( guy.Name == pName )
+                    playerMissed = guy;
+                else
+                    playerHit = guy;
+            }
+
+            //Bonus
+            playerHit.score++;
+
+            //To figure out where to put the ball
+            if (pName == "Second") //if second player nissed, place on top of player1's board
+            {
+                ball.y = playerHit.y - Ball.height - 1;
+                ball.x = playerHit.x + Player.width / 2 - Ball.width / 2;
+                ball.yVelocity = -5.0F;
+                ball.xVelocity = 5.0F * (float)Math.Pow(-1, playerMissed.score + playerHit.score); //sort of randomization of angle every turn( left or right)                
+            }                
+            else if (pName == "First") //if second missed, place below p2's board
+            {
+                ball.y =  playerHit.y + Player.height + 1;
+                ball.x = playerHit.x + Player.width/2 +Ball.width/2;
+                ball.yVelocity = 5.0F;
+                ball.xVelocity = 5.0F * (float)Math.Pow(-1, playerMissed.score + playerHit.score); //sort of randomization of angle every turn( left or right)
+            }
+            //Broadcast about scoring to everyone
+            Broadcast("score", playerHit.Id, playerHit.score);
         }
 
         //Will change angle of ball movement based on which part of boaard was hit
@@ -286,8 +341,8 @@ namespace MPPongCode
             float hitPercent;
 	        float ballPosition = ball.x - player.x;
 	        hitPercent = (ballPosition / (Player.width - Ball.width) ) - 0.5F;
-	        ball.xVelocity = hitPercent * 5;
-	        ball.yVelocity *= 1.0005F; //slightly increase speed with each hit
+	        ball.xVelocity = hitPercent * 10; //range would be -5 +5 fo xVelocity
+	        ball.yVelocity *= 1.005F; //slightly increase speed with each hit
         }
 
         //For serverside double checking of collisions

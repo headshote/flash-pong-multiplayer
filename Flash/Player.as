@@ -8,6 +8,8 @@
 	{
 		public var pName:String;
 		
+		public var score:int;
+		
 		public var rightPressed:Boolean;
 		public var leftPressed:Boolean;
 		
