@@ -112,20 +112,38 @@ namespace MPPongCode
 
 		// This method is called whenever a player joins the game
 		public override void UserJoined(Player player) 
-        {
+        {       
+            player.Name = "";
 
-            if (PlayerCount <= 1) //First player joins
+            //See, what players are already in the room
+            foreach( Player guy in Players)
+            {
+                Console.Write("Other PlayerName: ");
+                Console.WriteLine(guy.Name);
+                if (guy != player) //Other players only
+                {
+                    if (guy.Name == "First") //There is already player 1
+                    {
+                        player.Name = "Second";
+                        player.x = 339.95F;
+                        player.y = 12.75F;
+                    }
+                    else if (guy.Name == "Second") //there is already player two
+                    {
+                        player.Name = "First";
+                        player.x = 332.15F;
+                        player.y = 474.10F;
+                    }
+                }
+            }
+            // Player's name hasn't been set in the loop above, no player were in room before him, so he's first
+            if (player.Name == "")
             {
                 player.Name = "First";
                 player.x = 332.15F;
                 player.y = 474.10F;
             }
-            else //player two joins
-            {
-                player.Name = "Second";
-                player.x = 339.95F;
-                player.y = 12.75F;
-            }
+            
              // this is how you broadcast a message to all players connected to the game
             Broadcast("UserJoined", player.Id, player.Name, player.x, player.y);             
 

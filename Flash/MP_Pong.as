@@ -55,7 +55,7 @@
 			trace("Sucessfully connected to player.io");
 			
 			//Set developmentsever (Comment out to connect to your server online)
-			//client.multiplayer.developmentServer = "localhost:8184";
+			client.multiplayer.developmentServer = "localhost:8184";
 			
 			//Create pr join the room test
 			client.multiplayer.createJoinRoom(
