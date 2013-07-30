@@ -110,7 +110,8 @@
 		{
 			//The time now
 			var messageTime:Number = (new Date()).getTime();
-			//The time since the last state update
+			//The time since the last state update, is actually equal to time since last tick
+			//but code might be modified on server such that they won't be equal
 			var timeStateDiff:Number = messageTime - oldStateTime;
 			switch(message.type)
 			{
