@@ -317,7 +317,7 @@ namespace MPPongCode
             playerHit.score++;
 
             //To figure out where to put the ball
-            if (pName == "Second") //if second player nissed, place on top of player1's board
+            if (pName == "Second") //if second player missed, place on top of player1's board
             {
                 ball.y = playerHit.y - Ball.height - 1;
                 ball.x = playerHit.x + Player.width / 2 - Ball.width / 2;
@@ -335,7 +335,7 @@ namespace MPPongCode
             Broadcast("score", playerHit.Id, playerHit.score);
         }
 
-        //Will change angle of ball movement based on which part of boaard was hit
+        //Will change angle of ball movement based on which part of the boaard was hit
         private void checkHitLocation(Player player)
         {
             float hitPercent;
@@ -345,7 +345,7 @@ namespace MPPongCode
 	        ball.yVelocity *= 1.005F; //slightly increase speed with each hit
         }
 
-        //For serverside double checking of collisions
+        //For serverside double checking of collisions, rudimentary physics and collisions
         private bool ballCollision(Player player)
         {
             //Determone coords of centers of board and ball

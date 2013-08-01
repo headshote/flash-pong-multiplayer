@@ -4,6 +4,7 @@
 	import flash.events.*;
  	import flash.ui.*;
 	import flash.geom.ColorTransform;
+	import flash.text.*
 	
 	public class MP_Pong extends MovieClip
 	{
@@ -22,14 +23,39 @@
 		//Sound
 		var hitSound:Hit;
 		
+		//
+		var roomName:String;
+		
 		function MP_Pong()
 		{
-			addEventListener(Event.ADDED_TO_STAGE, init);
-			oldStateTime = 0;
+			if (stage)
+				init();
+			else
+				addEventListener(Event.ADDED_TO_STAGE, init);
+			oldStateTime = 0;			
+		}		
+		
+		
+		//init function, called once class is added to stage
+		function init(event:Event = null):void
+		{
+			removeEventListener(Event.ADDED_TO_STAGE, init);			
+			
 			stop();			
 			
 			hitSound = new Hit();
 			
+			stage.frameRate = 40;
+			connectButton.addEventListener(MouseEvent.MOUSE_DOWN, connectClick);
+		}
+		
+		//Event handler for join room button
+		function connectClick( event:Event ):void
+		{
+			roomName = roomText.text;
+			trace("Room name "+roomName);
+			
+			gotoAndStop(2);
 			PlayerIO.connect(
 				stage,								//Referance to stage
 				"multiplayer-pong-jed5uk4mnkx6pgpynxeva",			//Game id (Get your own at playerio.com)
@@ -41,15 +67,9 @@
 				handleError							//Function executed if we recive an error
 			);   
 			players = new Array();
-		}	
-		
-		//init function, called once class is added to stage
-		function init(event:Event):void
-		{
-			removeEventListener(Event.ADDED_TO_STAGE, init);
-			stage.frameRate = 40;
 		}
 		
+		//Called once connected to player.io server
 		private function handleConnect(client:Client):void
 		{
 			trace("Sucessfully connected to player.io");
@@ -59,7 +79,7 @@
 			
 			//Create pr join the room test
 			client.multiplayer.createJoinRoom(
-				"test",								//Room id. If set to null a random roomid is used
+				roomName,								//Room id. If set to null a random roomid is used
 				"MPPongCode",						//The game type started on the server
 				true,								//Should the room be visible in the lobby?
 				{},									//Room data. This data is returned to lobby list. Variabels can be modifed on the server
@@ -69,11 +89,11 @@
 			);
 		}
 		
-		
+		//Called when player joins the game
 		private function handleJoin(conn:Connection):void
 		{			
 			trace("Sucessfully connected to the multiplayer server");
-			gotoAndStop(2);	 
+			gotoAndStop(3);	 
 			
 			
 			connection = conn;
@@ -82,7 +102,7 @@
 			
 			//In case server tells us that we should go away
 			connection.addMessageHandler("disconnect", function(m:Message){
-				gotoAndStop(3); 
+				gotoAndStop(5); 
 				trace("Disconnected from server.");			 
 			})									
 			
@@ -342,7 +362,7 @@
 		private function handleError(error:PlayerIOError):void
 		{
 			trace("got",error)
-			gotoAndStop(3);
+			gotoAndStop(4);
 
 		}
 	}	
